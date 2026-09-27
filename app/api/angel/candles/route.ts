@@ -63,7 +63,10 @@ const CANDLE_CACHE_TTL: Record<string, number> = {
 };
 
 const RANGE_MAP: Record<string, { days: number; interval: string }> = {
-  "1D": { days: 1, interval: "FIVE_MINUTE" },
+  // Look back 5 calendar days, not 1, so weekends and holidays still contain a
+  // real session. The result is trimmed to the latest trading day below, so the
+  // chart stays a single intraday session instead of a lone stale candle.
+  "1D": { days: 5, interval: "FIVE_MINUTE" },
   "1W": { days: 7, interval: "FIFTEEN_MINUTE" },
   "1M": { days: 30, interval: "ONE_DAY" },
   "3M": { days: 90, interval: "ONE_DAY" },
@@ -209,8 +212,8 @@ export async function GET(request: NextRequest) {
       toDate.getTime() - rangeConfig.days * 24 * 60 * 60 * 1000,
     );
 
-    // Intraday start-of-day: MCX opens 09:00 IST, NSE/BSE open 09:15 IST.
-    // Use UTC equivalents (IST = UTC+5:30) so the server timezone doesn't matter.
+    // Intraday start-of-day floor: for the 5-day 1D window, start at the open
+    // of the earliest day. MCX opens 09:00 IST, NSE/BSE 09:15 IST (UTC+5:30).
     // MCX 09:00 IST = 03:30 UTC | NSE 09:15 IST = 03:45 UTC
     if (range === "1D") {
       const mcx = resolvedExchange === "MCX";
@@ -259,7 +262,20 @@ export async function GET(request: NextRequest) {
       if (fallback) return fallback;
     }
 
-    const responseData = { symbol: symbolName, exchange, range, interval, candles, source: "angel" as const };
+    // For 1D, keep only the most recent trading day's candles. The 5-day window
+    // above guarantees a real session even on weekends/holidays; trimming to the
+    // last IST date turns it back into a clean single-session intraday chart
+    // (and keeps the open/change % anchored to that day, not 5 days ago).
+    let outCandles = candles;
+    if (range === "1D" && candles.length > 1) {
+      const istDay = (unixSec: number) =>
+        new Date(unixSec * 1000 + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+      const lastDay = istDay(candles[candles.length - 1].time);
+      const sameDay = candles.filter((c) => istDay(c.time) === lastDay);
+      if (sameDay.length > 1) outCandles = sameDay;
+    }
+
+    const responseData = { symbol: symbolName, exchange, range, interval, candles: outCandles, source: "angel" as const };
     candleCache.set(cacheKey, { data: responseData, fetchedAt: Date.now() });
     return NextResponse.json(responseData);
   } catch (err) {

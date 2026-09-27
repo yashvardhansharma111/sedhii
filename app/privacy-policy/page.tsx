@@ -51,7 +51,7 @@ export default function PrivacyPolicyPage() {
               Sedhii (&ldquo;we,&rdquo; &ldquo;our,&rdquo; or
               &ldquo;us&rdquo;) operates the Sedhii mobile application
               and the website at{" "}
-              <a href="https://app.sedhiii.in">https://app.sedhiii.in</a>{" "}
+              <a href="https://sedhii.com">https://sedhii.com</a>{" "}
               (collectively, the &ldquo;Service&rdquo;). The Service is a{" "}
               <strong>paper trading (simulated) application</strong> intended
               for education and practice. No real money is invested, deposited,

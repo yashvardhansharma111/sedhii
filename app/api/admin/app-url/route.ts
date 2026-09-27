@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { readScopedConfig, upsertScopedConfig } from "@/lib/scoped-config";
 
-const DEFAULT_URL = "https://app.sedhiii.in";
+const DEFAULT_URL = "https://sedhii.com";
 
 async function requireAdmin() {
   const cookieStore = await cookies();
