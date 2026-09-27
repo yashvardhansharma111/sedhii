@@ -5,6 +5,61 @@ import {
   getExpiries,
   INDEX_TOKENS,
 } from "@/lib/angelone/instruments";
+import { fetchYahooSpot, toYahooSymbol } from "@/lib/yahoo";
+
+/** NFO/BFO option legs price off a cash underlying; MCX off its own board. */
+function underlyingExchangeFor(exchange: string): string {
+  return exchange === "NFO" ? "NSE" : exchange === "BFO" ? "BSE" : "MCX";
+}
+
+/**
+ * Underlying spot from Yahoo, for when Angel's quote API is unavailable.
+ *
+ * This only recovers the SPOT — Yahoo publishes no option chains for Indian
+ * instruments (`/v7/finance/options` returns empty strikes for ^NSEI and
+ * RELIANCE.NS alike), so per-strike premiums and OI cannot be backfilled.
+ * A spot is still worth fetching: it is what centres the chain on the ATM
+ * strike, so the table comes back on the right rows instead of at index 0.
+ */
+async function yahooSpot(
+  symbol: string,
+  exchange: string,
+): Promise<{ price: number; asOf: string | null }> {
+  const miss = { price: 0, asOf: null };
+  const yahooSymbol = toYahooSymbol(symbol, underlyingExchangeFor(exchange));
+  if (!yahooSymbol) return miss;
+  try {
+    const { price, asOf } = await fetchYahooSpot(yahooSymbol);
+    if (!price) return miss;
+    const ageMin = asOf ? Math.round((Date.now() / 1000 - asOf) / 60) : null;
+    console.log(
+      `[angel/option-chain] spot ${price} from Yahoo (${yahooSymbol}) — ` +
+        `DELAYED, quoted ${ageMin ?? "?"} min ago`,
+    );
+    return { price, asOf: asOf ? new Date(asOf * 1000).toISOString() : null };
+  } catch (e) {
+    console.error("[angel/option-chain] Yahoo spot failed —", (e as Error).message);
+    return miss;
+  }
+}
+
+/** Pick the strike nearest to spot, and a window of strikes centred on it. */
+function centreOnSpot(strikes: number[], spot: number, window: number) {
+  if (!strikes.length) return { atmStrike: 0, windowed: [] as number[] };
+  if (!(spot > 0)) return { atmStrike: 0, windowed: strikes.slice(0, window * 2) };
+  const atmIdx = strikes.reduce(
+    (best, _, idx) =>
+      Math.abs(strikes[idx] - spot) < Math.abs(strikes[best] - spot) ? idx : best,
+    0,
+  );
+  return {
+    atmStrike: strikes[atmIdx],
+    windowed: strikes.slice(
+      Math.max(0, atmIdx - window),
+      Math.min(strikes.length, atmIdx + window + 1),
+    ),
+  };
+}
 
 const QUOTE_CACHE_TTL_MS = 60_000; // 60 s — keep Angel One under rate limit
 declare global {
@@ -22,6 +77,10 @@ const quoteCache: Map<string, { data: unknown; fetchedAt: number }> =
  * Returns CE/PE option chain with live LTP for each strike.
  */
 export async function GET(request: NextRequest) {
+  // Held outside the try so the catch can still find the cache entry — the
+  // key depends on the resolved expiry, which the raw query string may omit.
+  let cacheKey: string | null = null;
+
   try {
     const sp = request.nextUrl.searchParams;
     const symbol = (sp.get("symbol") || "NIFTY").toUpperCase();
@@ -41,7 +100,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Full-response cache keyed by symbol+expiry+exchange — avoids hammering Angel One
-    const cacheKey = `${symbol}:${exchange}:${expiry}`;
+    cacheKey = `${symbol}:${exchange}:${expiry}`;
     const cached = quoteCache.get(cacheKey);
     if (cached && Date.now() - cached.fetchedAt < QUOTE_CACHE_TTL_MS) {
       console.log("[angel/option-chain] cache hit —", cacheKey, `age=${Math.round((Date.now() - cached.fetchedAt) / 1000)}s`);
@@ -77,7 +136,13 @@ export async function GET(request: NextRequest) {
         return NextResponse.json(cached.data);
       }
       const strikeSet = new Set([...allCalls.map((c) => c.strike), ...allPuts.map((p) => p.strike)]);
-      const allStrikes = [...strikeSet].sort((a, b) => a - b).slice(0, 20);
+      const sortedStrikes = [...strikeSet].sort((a, b) => a - b);
+      // Strikes and expiries come from the scrip master (a public download,
+      // unaffected by the rate limit), so the only thing missing is prices.
+      // Borrow the spot from Yahoo so the skeleton opens on the ATM rows.
+      const { price: spot, asOf: spotAsOf } = await yahooSpot(symbol, exchange);
+      const { atmStrike, windowed } = centreOnSpot(sortedStrikes, spot, 10);
+      const allStrikes = windowed;
       const expiries = await getExpiries(symbol, exchange);
       const chain = allStrikes.map((strike) => {
         const ce = allCalls.find((c) => c.strike === strike);
@@ -89,42 +154,79 @@ export async function GET(request: NextRequest) {
         return row;
       });
       console.log("[angel/option-chain] circuit open — returning skeleton chain", cacheKey);
-      return NextResponse.json({ symbol, expiry, exchange, spotPrice: 0, atmStrike: 0, expiries, chain });
+      return NextResponse.json({
+        symbol,
+        expiry,
+        exchange,
+        spotPrice: spot,
+        atmStrike,
+        expiries,
+        chain,
+        source: spot > 0 ? "yahoo-spot" : "skeleton",
+        // Yahoo's NSE/BSE feed lags ~15 min, so the ATM strike derived from
+        // it can sit a strike or two off in a fast market. Label, don't hide.
+        spotSource: spot > 0 ? "yahoo" : "none",
+        spotDelayed: spot > 0,
+        spotAsOf,
+        // Angel is the only source of Indian option premiums; Yahoo has none.
+        quotesUnavailable: true,
+      });
     }
 
-    // Fetch spot price first (needed to pick ATM strikes)
+    // Fetch spot price first (needed to pick ATM strikes).
+    // A throw here used to take the whole route down with a 500; now it just
+    // leaves spotPrice at 0 and we recover it from Yahoo below.
     let spotPrice = 0;
+    let spotSource: "angel" | "yahoo" | "none" = "none";
+    /** Yahoo's own quote time when the spot came from the delayed feed. */
+    let spotAsOf: string | null = null;
     const idxInfo = INDEX_TOKENS[symbol];
-    if (idxInfo) {
-      const spotResult = await angelPost(
-        "/rest/secure/angelbroking/market/v1/quote/",
-        {
-          mode: "LTP",
-          exchangeTokens: { [idxInfo.exchange]: [idxInfo.token] },
-        },
-      );
-      if (spotResult.status && spotResult.data?.fetched?.[0]) {
-        spotPrice = Number(spotResult.data.fetched[0].ltp);
-      }
-    } else {
-      // For stocks/commodities — spot = underlying equity/futures LTP
-      const { findBySymbol, resolveTradable } = await import("@/lib/angelone/instruments");
-      const underlyingExchange = exchange === "NFO" ? "NSE" : exchange === "BFO" ? "BSE" : "MCX";
-      // For MCX, use resolveTradable to find the nearest futures contract (FUTCOM).
-      // findBySymbol won't work because MCX symbols include expiry (e.g. "CRUDEOIL25APR2026FUT").
-      const inst =
-        underlyingExchange === "MCX"
-          ? await resolveTradable("MCX", symbol)
-          : (await findBySymbol(underlyingExchange, symbol)) ||
-            (await findBySymbol(underlyingExchange, `${symbol}-EQ`));
-      if (inst) {
+    try {
+      if (idxInfo) {
         const spotResult = await angelPost(
           "/rest/secure/angelbroking/market/v1/quote/",
-          { mode: "LTP", exchangeTokens: { [inst.exch_seg]: [inst.token] } },
+          {
+            mode: "LTP",
+            exchangeTokens: { [idxInfo.exchange]: [idxInfo.token] },
+          },
         );
         if (spotResult.status && spotResult.data?.fetched?.[0]) {
           spotPrice = Number(spotResult.data.fetched[0].ltp);
         }
+      } else {
+        // For stocks/commodities — spot = underlying equity/futures LTP
+        const { findBySymbol, resolveTradable } = await import("@/lib/angelone/instruments");
+        const underlyingExchange = underlyingExchangeFor(exchange);
+        // For MCX, use resolveTradable to find the nearest futures contract (FUTCOM).
+        // findBySymbol won't work because MCX symbols include expiry (e.g. "CRUDEOIL25APR2026FUT").
+        const inst =
+          underlyingExchange === "MCX"
+            ? await resolveTradable("MCX", symbol)
+            : (await findBySymbol(underlyingExchange, symbol)) ||
+              (await findBySymbol(underlyingExchange, `${symbol}-EQ`));
+        if (inst) {
+          const spotResult = await angelPost(
+            "/rest/secure/angelbroking/market/v1/quote/",
+            { mode: "LTP", exchangeTokens: { [inst.exch_seg]: [inst.token] } },
+          );
+          if (spotResult.status && spotResult.data?.fetched?.[0]) {
+            spotPrice = Number(spotResult.data.fetched[0].ltp);
+          }
+        }
+      }
+      if (spotPrice > 0) spotSource = "angel";
+    } catch (e) {
+      console.warn("[angel/option-chain] Angel spot failed —", (e as Error).message);
+    }
+
+    // Angel gave us nothing for the spot — fall back to Yahoo so the chain
+    // still centres on the right ATM strike.
+    if (!(spotPrice > 0)) {
+      const fallbackSpot = await yahooSpot(symbol, exchange);
+      spotPrice = fallbackSpot.price;
+      if (spotPrice > 0) {
+        spotSource = "yahoo";
+        spotAsOf = fallbackSpot.asOf;
       }
     }
 
@@ -164,22 +266,35 @@ export async function GET(request: NextRequest) {
       tokenToInstrument.set(p.token, { ...p, optionType: "PE" });
     }
 
-    // Batch quote (max 50 per request for Angel)
+    // Batch quote (max 50 per request for Angel).
+    // Yahoo has no Indian option premiums, so there is nothing to fall back to
+    // here — a failed batch just leaves those strikes unquoted, and the merge
+    // below keeps the previous cached LTPs rather than flashing zeroes.
     const quoteMap = new Map<string, any>();
     const BATCH = 50;
+    let quoteBatchFailed = false;
     for (let i = 0; i < nfoTokens.length; i += BATCH) {
       const batch = nfoTokens.slice(i, i + BATCH);
-      const qResult = await angelPost(
-        "/rest/secure/angelbroking/market/v1/quote/",
-        {
-          mode: "FULL",
-          exchangeTokens: { [exchange]: batch },
-        },
-      );
-      if (qResult.status && qResult.data?.fetched) {
-        for (const q of qResult.data.fetched) {
-          quoteMap.set(q.symbolToken || q.symboltoken, q);
+      try {
+        const qResult = await angelPost(
+          "/rest/secure/angelbroking/market/v1/quote/",
+          {
+            mode: "FULL",
+            exchangeTokens: { [exchange]: batch },
+          },
+        );
+        if (qResult.status && qResult.data?.fetched) {
+          for (const q of qResult.data.fetched) {
+            quoteMap.set(q.symbolToken || q.symboltoken, q);
+          }
+        } else {
+          quoteBatchFailed = true;
         }
+      } catch (e) {
+        // Rate limit mid-way through. Stop asking, keep what we already have.
+        quoteBatchFailed = true;
+        console.warn("[angel/option-chain] quote batch failed —", (e as Error).message);
+        break;
       }
     }
 
@@ -298,11 +413,25 @@ export async function GET(request: NextRequest) {
       atmStrike: atmStrike > 0 ? atmStrike : Number(prev?.atmStrike ?? 0),
       expiries,
       chain: mergedChain,
+      /** Where the underlying spot came from: "angel", "yahoo", or "none". */
+      spotSource,
+      /** True when the spot came from Yahoo's ~15-min delayed feed. */
+      spotDelayed: spotSource === "yahoo",
+      spotAsOf,
+      /** True when some or all option quotes could not be refreshed. */
+      quotesStale: quoteBatchFailed || liveQuoteCount === 0,
     };
     quoteCache.set(cacheKey, { data: responseData, fetchedAt: Date.now() });
     return NextResponse.json(responseData);
   } catch (err: any) {
     console.error("[angel/option-chain]", err);
+    // Stale chain beats an error screen. Yahoo can't stand in here — it
+    // publishes no option chains for Indian instruments.
+    const stale = cacheKey ? quoteCache.get(cacheKey) : undefined;
+    if (stale) {
+      console.log("[angel/option-chain] threw — serving stale cache");
+      return NextResponse.json(stale.data);
+    }
     return NextResponse.json(
       { error: err.message || "Internal error" },
       { status: 500 },

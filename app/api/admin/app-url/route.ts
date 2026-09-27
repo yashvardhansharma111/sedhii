@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { readScopedConfig, upsertScopedConfig } from "@/lib/scoped-config";
 
-const DEFAULT_URL = "https://zero-dha-alpha.vercel.app";
+const DEFAULT_URL = "https://app.sedhiii.in";
 
 async function requireAdmin() {
   const cookieStore = await cookies();

@@ -264,7 +264,7 @@ export default function AdminSettingsPage() {
       <h2 className="mt-12 text-lg font-semibold text-slate-900">App API URL</h2>
       <p className="mt-1 text-sm text-slate-600">
         The server URL the mobile app connects to. Leave blank to use the default{" "}
-        <code className="rounded bg-slate-100 px-1 text-xs">https://zero-dha-alpha.vercel.app</code>.
+        <code className="rounded bg-slate-100 px-1 text-xs">https://app.sedhiii.in</code>.
         The app fetches this on every launch — no APK rebuild needed to change servers.
       </p>
       {appUrlMsg && (
@@ -278,13 +278,13 @@ export default function AdminSettingsPage() {
           <span className="text-xs font-medium text-slate-500">API base URL</span>
           <input
             className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-            placeholder="https://zero-dha-alpha.vercel.app"
+            placeholder="https://app.sedhiii.in"
             value={appUrl}
             onChange={(e) => setAppUrl(e.target.value)}
           />
         </label>
         <p className="mt-2 text-xs text-slate-400">
-          No trailing slash. Example: <code>https://zero-dha-alpha.vercel.app</code>
+          No trailing slash. Example: <code>https://app.sedhiii.in</code>
         </p>
       </section>
       <button

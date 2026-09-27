@@ -43,7 +43,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
             Admin
           </p>
-          <p className="mt-1 text-lg font-bold text-slate-900">Zerodha</p>
+          <p className="mt-1 text-lg font-bold text-slate-900">Sedhii</p>
         </div>
         <nav className="flex flex-1 flex-col gap-0.5 p-3">
           {nav.map(({ href, label, icon: Icon }) => {

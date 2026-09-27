@@ -136,7 +136,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       {
-        message: "Registration submitted successfully",
+        message: "Account request received successfully. Our team will reach out within 24 hours.",
       },
       { status: 201 },
     );

@@ -2,13 +2,13 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy · Zerodha",
+  title: "Privacy Policy · Sedhii",
   description:
-    "Privacy Policy for Zerodha — a paper trading (simulated) app.",
+    "Privacy Policy for Sedhii — a paper trading (simulated) app.",
 };
 
 const LAST_UPDATED = "May 6, 2026";
-const SUPPORT_EMAIL = "support@zerodha-pulse.in";
+const SUPPORT_EMAIL = "support@sedhiii.in";
 
 export default function PrivacyPolicyPage() {
   return (
@@ -17,10 +17,10 @@ export default function PrivacyPolicyPage() {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3.5">
           <Link href="/" className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500 text-lg font-bold text-white">
-              N
+              S
             </div>
             <span className="text-xl font-bold tracking-tight text-slate-900">
-              Zerodha
+              Sedhii
             </span>
           </Link>
           <Link
@@ -48,10 +48,10 @@ export default function PrivacyPolicyPage() {
 
           <Section title="1. Introduction">
             <p>
-              Zerodha (&ldquo;we,&rdquo; &ldquo;our,&rdquo; or
-              &ldquo;us&rdquo;) operates the Zerodha mobile application
+              Sedhii (&ldquo;we,&rdquo; &ldquo;our,&rdquo; or
+              &ldquo;us&rdquo;) operates the Sedhii mobile application
               and the website at{" "}
-              <a href="https://app.zerodha-pulse.in">https://app.zerodha-pulse.in</a>{" "}
+              <a href="https://app.sedhiii.in">https://app.sedhiii.in</a>{" "}
               (collectively, the &ldquo;Service&rdquo;). The Service is a{" "}
               <strong>paper trading (simulated) application</strong> intended
               for education and practice. No real money is invested, deposited,
@@ -211,14 +211,14 @@ export default function PrivacyPolicyPage() {
             <div className="flex flex-col gap-3">
               <div className="flex items-center gap-2">
                 <div className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-500 text-xs font-bold text-white">
-                  N
+                  S
                 </div>
                 <span className="text-sm font-semibold text-slate-900">
-                  Zerodha
+                  Sedhii
                 </span>
               </div>
               <p className="text-xs text-slate-500">
-                &copy; {new Date().getFullYear()} Zerodha. All rights
+                &copy; {new Date().getFullYear()} Sedhii. All rights
                 reserved.
               </p>
             </div>

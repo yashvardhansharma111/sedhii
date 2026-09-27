@@ -134,8 +134,8 @@ export async function POST(request: Request) {
     return NextResponse.json({
       message:
         requestType === "withdraw"
-          ? "Withdraw request submitted. Admin will verify and process your withdrawal."
-          : "Fund request submitted. Admin will verify payment and update your balance.",
+          ? "Withdrawal request submitted successfully. The amount will be credited to your bank account within 1 business day."
+          : "Fund request submitted successfully. Your account balance will be updated within 1 business day upon payment confirmation.",
     });
   } catch (error) {
     console.error("Fund request error:", error);

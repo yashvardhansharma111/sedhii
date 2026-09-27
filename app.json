@@ -1,15 +1,15 @@
 {
   "expo": {
-    "name": "Zerodha",
-    "slug": "nokia-securities",
+    "name": "Sedhii",
+    "slug": "sedhiii",
     "extra": {
-      "apiUrl": "https://zero-dha-alpha.vercel.app",
+      "apiUrl": "https://app.sedhiii.in",
       "eas": {
         "projectId": "d3c3749a-ce19-499c-906d-4666a7fa0f08"
       }
     },
     "android": {
-      "package": "com.nokiasecurities.app"
+      "package": "com.sedhiii.app"
     }
   }
 }

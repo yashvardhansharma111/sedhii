@@ -5,11 +5,36 @@
   --foreground: #171717;
 }
 
+/*
+ * Sedhii marketing tokens (home + legal pages).
+ * White canvas, signal red brand. Red is both the brand and the "down"
+ * signal, so --positive is a neutral charcoal — red should only ever mean a
+ * loss or a primary action. Keep in sync with stock-app/constants/theme.js.
+ *
+ * These are DEFINED on the .site-root scope (not :root) on purpose:
+ *   - the admin panel keeps its own slate/emerald palette untouched, and
+ *   - the marketing pages stay light even under the dark-mode block below,
+ *     because a value set on a nearer ancestor (.site-root) wins over :root.
+ */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-primary: var(--primary);
+  --color-primary-dark: var(--primary-dark);
+  --color-primary-muted: var(--primary-muted);
+  --color-accent: var(--accent);
+  --color-accent-dark: var(--accent-dark);
+  --color-accent-muted: var(--accent-muted);
+  --color-positive: var(--positive);
+  --color-positive-muted: var(--positive-muted);
+  --color-card: var(--card);
+  --color-border: var(--border);
+  --color-text-secondary: var(--text-secondary);
+  --color-negative: var(--negative);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-fraunces);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -23,4 +48,72 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* ── Sedhii marketing surface (home + legal) ─────────────────────────────
+   Always light, Sora body / Fraunces display. The token values live here so
+   this subtree is immune to the dark-mode block and never touches admin. */
+.site-root {
+  --background: #ffffff;
+  --surface: #ffffff;
+  --foreground: #17171a;
+  --primary: #d32f2f;
+  --primary-dark: #a31d1d;
+  --primary-muted: rgba(211, 47, 47, 0.1);
+  --accent: #8e1b1b;
+  --accent-dark: #6e1414;
+  --accent-muted: rgba(142, 27, 27, 0.12);
+  --positive: #33383f;
+  --positive-muted: rgba(51, 56, 63, 0.1);
+  --card: #ffffff;
+  --border: #e7e7eb;
+  --text-secondary: #6b6f76;
+  --negative: #d32f2f;
+
+  background: #ffffff;
+  color: var(--foreground);
+  font-family: var(--font-sora), system-ui, sans-serif;
+  scroll-behavior: smooth;
+}
+
+.site-root .font-display {
+  font-family: var(--font-fraunces), Georgia, serif;
+}
+
+/* Brand atmosphere — soft red wash behind the marketing pages */
+.brand-atmosphere {
+  position: relative;
+  isolation: isolate;
+}
+
+.brand-atmosphere::before {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse 70% 45% at 12% -5%, rgba(211, 47, 47, 0.1), transparent 55%),
+    radial-gradient(ellipse 55% 40% at 92% 8%, rgba(142, 27, 27, 0.08), transparent 50%),
+    radial-gradient(ellipse 50% 35% at 70% 100%, rgba(211, 47, 47, 0.05), transparent 55%),
+    #ffffff;
+}
+
+/* Live-markets ticker — seamless marquee. The track holds the chip row twice,
+   so a -50% shift loops without a visible jump. Pauses on hover. */
+@keyframes ticker-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.ticker-track {
+  display: inline-flex;
+  flex-shrink: 0;
+  animation: ticker-scroll 45s linear infinite;
+  will-change: transform;
+}
+.ticker-mask:hover .ticker-track {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track { animation: none; }
 }

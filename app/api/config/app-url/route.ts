@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { readScopedConfig } from "@/lib/scoped-config";
 
-const DEFAULT_URL = "https://zero-dha-alpha.vercel.app";
+const DEFAULT_URL = "https://app.sedhiii.in";
 
 /** GET /api/config/app-url — public, no auth required.
  *  Returns the API base URL the mobile app should use.

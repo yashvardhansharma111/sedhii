@@ -39,7 +39,7 @@ export async function sendClientCredentialsEmail({
   password,
 }: SendClientCredentialsEmailParams) {
   const fromEmail = process.env.SMTP_USER;
-  const fromName = process.env.SMTP_FROM_NAME || "Zero-dha";
+  const fromName = process.env.SMTP_FROM_NAME || "Sedhii";
   if (!fromEmail) {
     throw new Error("SMTP sender is not configured");
   }
@@ -53,7 +53,7 @@ export async function sendClientCredentialsEmail({
         <p>Dear ${name},</p>
 
         <p>
-          Welcome to Zero-dha. Your registration has been completed successfully.
+          Welcome to Sedhii. Your registration has been completed successfully.
           Below are your login details for accessing your account.
         </p>
 
@@ -72,7 +72,7 @@ export async function sendClientCredentialsEmail({
 
         <p>If you did not request this account, please contact support immediately.</p>
 
-        <p style="margin:0;font-size:13px;color:#6b7280">Support: support@zero-dha.in</p>
+        <p style="margin:0;font-size:13px;color:#6b7280">Support: support@sedhiii.in</p>
 
       </div>
     </div>
@@ -81,7 +81,7 @@ export async function sendClientCredentialsEmail({
   const text = [
     `Dear ${name},`,
     "",
-    "Welcome to Zero-dha. Your registration has been completed successfully.",
+    "Welcome to Sedhii. Your registration has been completed successfully.",
     "Below are your login details for accessing your account.",
     "",
     `User ID             : ${clientId}`,
@@ -91,13 +91,13 @@ export async function sendClientCredentialsEmail({
     "",
     "If you did not request this account, please contact support immediately.",
     "",
-    "Support: support@zero-dha.in",
+    "Support: support@sedhiii.in",
   ].join("\n");
 
   await getTransporter().sendMail({
     from,
     to,
-    subject: "Your Zero-dha account is ready",
+    subject: "Your Sedhii account is ready",
     html,
     text,
   });
