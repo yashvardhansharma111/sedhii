@@ -12,5 +12,5 @@ export const SITE = {
 
   /** Android build. Swap this one constant when a new APK ships. */
   apkUrl:
-    "https://www.dropbox.com/scl/fi/bo8l54dy1knj08byhxf7q/sedhii.apk?rlkey=wvt2hehln02e2o2rucrh59rst&st=o6snlsbr&dl=1",
+    "https://www.dropbox.com/scl/fi/8oextti1ghwaw0xjdrvnb/sedhii-2.apk?rlkey=wtphg0f8p698uxlqmhynny710&st=j65novib&dl=1",
 } as const;
