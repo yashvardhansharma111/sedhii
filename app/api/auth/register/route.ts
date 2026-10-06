@@ -24,20 +24,37 @@ function isUploadThingHttpsUrl(url: string): boolean {
 
 export async function POST(request: Request) {
   try {
-    const formData = await request.formData();
-    const fullName = formData.get("fullName")?.toString().trim() ?? "";
-    const email = formData.get("email")?.toString().trim().toLowerCase() ?? "";
-    const phone = formData.get("phone")?.toString().trim() ?? "";
-    const panNumber = formData.get("panNumber")?.toString().trim().toUpperCase() ?? "";
-    const aadhaarNumber = formData.get("aadhaarNumber")?.toString().trim() ?? "";
-    const accountNo = formData.get("accountNo")?.toString().trim() ?? "";
-    const ifscCode = formData.get("ifscCode")?.toString().trim().toUpperCase() ?? "";
-    const documentType = formData.get("documentType")?.toString().trim() ?? "";
+    // The app now sends JSON (strings + pre-uploaded media URLs); older builds
+    // send multipart/form-data with file parts. Accept either.
+    const contentType = request.headers.get("content-type") || "";
+    const isJson = contentType.includes("application/json");
+    let formData: FormData | null = null;
+    let json: Record<string, unknown> = {};
+    if (isJson) {
+      json = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+    } else {
+      formData = await request.formData();
+    }
+    const field = (name: string): string => {
+      const v = isJson ? json[name] : formData?.get(name);
+      return typeof v === "string" ? v.trim() : "";
+    };
 
-    const photo = formData.get("photo");
-    const bankProof = formData.get("bankProof");
-    const document = formData.get("document");
-    const signatureUrlRaw = formData.get("signatureUrl")?.toString().trim() ?? "";
+    const fullName = field("fullName");
+    const email = field("email").toLowerCase();
+    const phone = field("phone");
+    const panNumber = field("panNumber").toUpperCase();
+    const aadhaarNumber = field("aadhaarNumber");
+    const accountNo = field("accountNo");
+    const ifscCode = field("ifscCode").toUpperCase();
+    const documentType = field("documentType");
+
+    const photo = formData?.get("photo") ?? null;
+    const bankProof = formData?.get("bankProof") ?? null;
+    const document = formData?.get("document") ?? null;
+    const signatureUrlRaw = field("signatureUrl");
+    const documentUrlRaw = field("documentUrl");
+    const documentName = field("documentName");
 
     if (!fullName || !email || !phone) {
       return NextResponse.json(
@@ -86,28 +103,20 @@ export async function POST(request: Request) {
     }
 
     documents.photo = await fileToDoc(photo);
-    const signatureFile = formData.get("signature");
-    documents.signature = await fileToDoc(signatureFile);
+    documents.signature = await fileToDoc(formData?.get("signature") ?? null);
     documents.bankProof = await fileToDoc(bankProof);
     documents.document = await fileToDoc(document);
 
+    // Signature & supporting document are OPTIONAL. Pre-uploaded UploadThing
+    // URLs are stored when valid; an absent or invalid URL is simply stored as
+    // null and NEVER blocks the request — the account request always goes
+    // through as long as the core identity + bank fields are present.
     const signatureUploadThingUrl = isUploadThingHttpsUrl(signatureUrlRaw)
       ? signatureUrlRaw
       : null;
-
-    if (!documents.signature && !signatureUploadThingUrl) {
-      return NextResponse.json(
-        { message: "Signature image is required" },
-        { status: 400 },
-      );
-    }
-
-    if (signatureUrlRaw && !signatureUploadThingUrl) {
-      return NextResponse.json(
-        { message: "Invalid signature URL" },
-        { status: 400 },
-      );
-    }
+    const documentUrl = isUploadThingHttpsUrl(documentUrlRaw)
+      ? documentUrlRaw
+      : null;
 
     await users.insertOne({
       fullName,
@@ -131,6 +140,8 @@ export async function POST(request: Request) {
         bankProof: documents.bankProof,
         document: documents.document,
         signatureUploadThingUrl,
+        documentUrl,
+        documentName: documentName || null,
       },
     });
 
